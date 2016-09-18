@@ -3,12 +3,13 @@
 
 var Domoticz = require('./node_modules/domoticz-api/api/domoticz');
 
+//update with your Domoticz details
 var api = new Domoticz({
 	protocol: "http",
 	host: "127.0.0.1",
 	port: 8080,
-	username: "admin",
-	password: "1saBella"
+	username: "",
+	password: ""
 });
 
 var CronJob = require('cron').CronJob;
@@ -19,18 +20,13 @@ console.log("i've started the job");
 
 let huejay = require('huejay');
 
-var options = {
-	host: '192.168.88.194',
-	request: true,
-	log: true
-};
-
+//update with your Hue bridge details (i use the Hue account created within Domoticz)
 let client = new huejay.Client({
-	host: '192.168.88.236',
-	username: 'O3byYLfmL1C3Qr1f9i9ENXPdh5vKFf8t9NpZb4br', // Optional
+	host: '',
+	username: '', // Optional
 	timeout: 3000, // Optional, timeout in milliseconds (15000 is the default)
 });
-
+//put your light names in here, with the Domoticz IDX (later iteration could get these from Domo API and add to dictionary..)
 var dict = {
 	"Barn_1_1": 157,
 	"Barn_1_2": 162,
@@ -76,13 +72,6 @@ client.lights.getAll()
 				})
 				
 			}; 
-			/*function callLog(){
-				api.logMessage({
-					message: `{"command":"switchlight","idx":"${IDX}", "switchcmd": "${level}"}`
-				}, function(params, callback){
-					console.log(callback)
-				})
-			};*/
 			
 		}
 	}, null, true);
