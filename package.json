@@ -1,9 +1,0 @@
-{
-    "name": "domapi",
-    "version": "0.0.1",
-    "description": "Test domoticz api",
-    "preferGlobal": "true",
-    "bin": { "domapi": "domapi.js" },
-    "author": "nick",
-    "engines": { "node": "*" }
-}
