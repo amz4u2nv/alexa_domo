@@ -2,7 +2,7 @@ var Domoticz = require('./node_modules/domoticz-api/api/domoticz');
 
 //var api = new Domoticz();
 
-var api = new Domoticz({protocol: "http", host: "80.1.142.21", port: 8080, username: "admin", password: "1saBella"});
+var api = new Domoticz({protocol: "http", host: "", port: 8080, username: "", password: ""});
 
 var func = function(event, context) {
   console.log('Input', event);
