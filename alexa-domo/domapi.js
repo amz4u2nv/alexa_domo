@@ -74,6 +74,7 @@ function handleDiscovery(accessToken, context) {
 				modelName: element.name,
 				version: element.idx,
 				friendlyName: element.name,
+				friendlyDescription: element.name,
 				isReachable: true,
 				actions: [
 					"turnOn",
@@ -88,244 +89,242 @@ function handleDiscovery(accessToken, context) {
 	});
 
 	api.getDevices({
-			filter: 'all',
-			used: true,
-			order: 'Name'
-		}, function(error, devices) {
+		filter: 'all',
+		used: true,
+		order: 'Name'
+	}, function(error, devices) {
 
-			var devArray = devices.results;
+		var devArray = devices.results;
 
-			for (var i = 0; i < devArray.length; i++) {
-				var device = devArray[i];
-				console.log("here is each devicetype - ", device.switchType)
-				type = device.type
-				setswitch = device.switchType
-				strType = type.startsWith("Light")
-				if (strType === true) {
-					var appliancename = {
-						applianceId: device.idx,
-						manufacturerName: device.hardwareName,
-						modelName: device.subType,
-						version: device.switchType,
-						friendlyName: device.name,
-						//friendlyDescription: 'Particle light in kitchen',
-						isReachable: true,
-						actions: [
-							"incrementPercentage",
-							"decrementPercentage",
-							"setPercentage",
-							"turnOn",
-							"turnOff"
-						],
-						additionalApplianceDetails: {
-							switchis: setswitch,
-							WhatAmI: "light"
-						}
+		for (var i = 0; i < devArray.length; i++) {
+			var device = devArray[i];
+			console.log("here is each devicetype - ", device.switchType)
+			type = device.type
+			setswitch = device.switchType
+			strType = type.startsWith("Light")
+			if (strType === true) {
+				var appliancename = {
+					applianceId: device.idx,
+					manufacturerName: device.hardwareName,
+					modelName: device.subType,
+					version: device.switchType,
+					friendlyName: device.name,
+					friendlyDescription: device.name,
+					isReachable: true,
+					actions: [
+						"incrementPercentage",
+						"decrementPercentage",
+						"setPercentage",
+						"turnOn",
+						"turnOff"
+					],
+					additionalApplianceDetails: {
+						switchis: setswitch,
+						WhatAmI: "light"
+					}
 
-					};
+				};
+			} else if (type = 'Temp') {
+
+				var appliancename = {
+					applianceId: device.idx,
+					manufacturerName: device.hardwareName,
+					modelName: device.subType,
+					version: device.switchType,
+					friendlyName: device.name,
+					friendlyDescription: device.name,
+					isReachable: true,
+					actions: [
+						"SetTargetTemperatureRequest",
+						"SetTargetTemperatureConfirmation"
+					],
+					additionalApplianceDetails: {
+						WhatAmI: "temp"
+					}
+
 				}
-					else if (type = 'Temp') {
-
-						var appliancename = {
-							applianceId: device.idx,
-							manufacturerName: device.hardwareName,
-							modelName: device.subType,
-							version: device.switchType,
-							friendlyName: device.name,
-							friendlyDescription: device.name,
-							isReachable: true,
-							actions: [
-								"SetTargetTemperatureRequest",
-								"SetTargetTemperatureConfirmation"
-							],
-							additionalApplianceDetails: {
-								WhatAmI: "temp"
-							}
-
-						}
-					};
-					appliances.push(appliancename);
+			};
+			appliances.push(appliancename);
 
 
-					for (var i = 0; i < appliances.length; i++) {
-						var device = appliances[i];
-						console.log(device)
-					}
-					//appliances.forEach(entry)
-					//  console.log(entry)
-				};
-
-				var payloads = {
-					discoveredAppliances: appliances
-				};
-				var result = {
-					header: headers,
-					payload: payloads
-				};
-
-				console.log('Discovery', result);
-
-				context.succeed(result);
+			for (var i = 0; i < appliances.length; i++) {
+				var device = appliances[i];
+				console.log(device)
 			}
-		);
-	}
-
-
-
-
-	function handleControl(event, context) {
-		var state;
-		var idx;
-		if (event.header.namespace === 'Alexa.ConnectedHome.Control') {
-
-			var accessToken = event.payload.accessToken;
-			var what = event.payload.appliance.additionalApplianceDetails.WhatAmI
-			var message_id = event.header.messageId;
-
-			var confirmation;
-			var funcName;
-
-			switch (what) {
-
-				case "light":
-					console.log("I'm in the Light case");
-
-					var switchtype = event.payload.appliance.additionalApplianceDetails.switchis
-					var applianceId = event.payload.appliance.applianceId;
-
-					var switchtype = "switch";
-
-					if (event.header.name == "TurnOnRequest") {
-						//state = 1;
-						confirmation = "TurnOnConfirmation";
-						funcName = "On";
-					} else if (event.header.name == "TurnOffRequest") {
-						//state = 0;
-						confirmation = "TurnOffConfirmation";
-						funcName = "Off";
-					}
-					var headers = {
-						namespace: 'Alexa.ConnectedHome.Control',
-						name: confirmation,
-						payloadVersion: '2',
-						messageId: message_id
-					};
-
-					//Change state of a switch or a dimmable  
-
-					api.changeSwitchState({
-						type: switchtype,
-						idx: applianceId,
-						state: funcName
-					}, function(params, callback) {
-						console.log(callback)
-						var payloads = {};
-						var result = {
-							header: headers,
-							payload: payloads
-						};
-						context.succeed(result);
-					});
-
-					break;
-				case "temp":
-
-					var temp = event.payload.targetTemperature.value;
-					console.log("I'm in the temp case");
-
-
-					var applianceId = event.payload.appliance.applianceId;
-
-					if (event.header.name == "SetTargetTemperatureRequest") {
-						confirmation = "SetTargetTemperatureConfirmation";
-						//	flVal = parseFloat(temp);
-					}
-
-					var headers = {
-						namespace: 'Alexa.ConnectedHome.Control',
-						name: confirmation,
-						payloadVersion: '2',
-						messageId: message_id
-					};
-
-					//Change value of temp
-
-					api.uTemp({
-						idx: applianceId,
-						value: temp
-					}, function(params, callback) {
-						console.log(callback)
-						var payloads = {};
-						var result = {
-							header: headers,
-							payload: payloads
-						};
-						context.succeed(result);
-					});
-
-					break;
-
-				case "scene":
-
-					var AppID = parseInt(event.payload.appliance.applianceId) - 200;
-
-					if (event.header.name == "TurnOnRequest") {
-						//state = 1;
-						confirmation = "TurnOnConfirmation";
-						funcName = "On";
-					} else if (event.header.name == "TurnOffRequest") {
-						//state = 0;
-						confirmation = "TurnOffConfirmation";
-						funcName = "Off";
-					}
-
-					var headers = {
-						namespace: 'Alexa.ConnectedHome.Control',
-						name: confirmation,
-						payloadVersion: '2',
-						messageId: message_id
-					};
-					console.log("I'm in the scene case - IDX = ", AppID, "On/Off? - ", funcName);
-					api.changeSceneState({
-						idx: AppID,
-						state: funcName
-					}, function(params, callback) {
-						console.log(callback)
-						var payloads = {};
-						var result = {
-							header: headers,
-							payload: payloads
-						};
-
-						context.succeed(result);
-					})
-					break;
-			}
-		};
-	}
-
-	function log(title, msg) {
-		console.log(title + ": " + msg);
-	}
-
-	function generateControlError(name, code, description) {
-		var headers = {
-			namespace: 'Alexa.ConnectedHome.Control',
-			name: name,
-			payloadVersion: '2'
+			//appliances.forEach(entry)
+			//  console.log(entry)
 		};
 
-		var payload = {
-			exception: {
-				code: code,
-				description: description
-			}
+		var payloads = {
+			discoveredAppliances: appliances
 		};
-
 		var result = {
 			header: headers,
-			payload: payload
+			payload: payloads
 		};
 
-		return result;
-	}
+		console.log('Discovery', result);
+
+		context.succeed(result);
+	});
+}
+
+
+
+
+function handleControl(event, context) {
+	var state;
+	var idx;
+	if (event.header.namespace === 'Alexa.ConnectedHome.Control') {
+
+		var accessToken = event.payload.accessToken;
+		var what = event.payload.appliance.additionalApplianceDetails.WhatAmI
+		var message_id = event.header.messageId;
+
+		var confirmation;
+		var funcName;
+
+		switch (what) {
+
+			case "light":
+				console.log("I'm in the Light case");
+
+				var switchtype = event.payload.appliance.additionalApplianceDetails.switchis
+				var applianceId = event.payload.appliance.applianceId;
+
+				var switchtype = "switch";
+
+				if (event.header.name == "TurnOnRequest") {
+					//state = 1;
+					confirmation = "TurnOnConfirmation";
+					funcName = "On";
+				} else if (event.header.name == "TurnOffRequest") {
+					//state = 0;
+					confirmation = "TurnOffConfirmation";
+					funcName = "Off";
+				}
+				var headers = {
+					namespace: 'Alexa.ConnectedHome.Control',
+					name: confirmation,
+					payloadVersion: '2',
+					messageId: message_id
+				};
+
+				//Change state of a switch or a dimmable  
+
+				api.changeSwitchState({
+					type: switchtype,
+					idx: applianceId,
+					state: funcName
+				}, function(params, callback) {
+					console.log(callback)
+					var payloads = {};
+					var result = {
+						header: headers,
+						payload: payloads
+					};
+					context.succeed(result);
+				});
+
+				break;
+			case "temp":
+
+				var temp = event.payload.targetTemperature.value;
+				console.log("I'm in the temp case");
+
+
+				var applianceId = event.payload.appliance.applianceId;
+
+				if (event.header.name == "SetTargetTemperatureRequest") {
+					confirmation = "SetTargetTemperatureConfirmation";
+					//	flVal = parseFloat(temp);
+				}
+
+				var headers = {
+					namespace: 'Alexa.ConnectedHome.Control',
+					name: confirmation,
+					payloadVersion: '2',
+					messageId: message_id
+				};
+
+				//Change value of temp
+
+				api.uTemp({
+					idx: applianceId,
+					value: temp
+				}, function(params, callback) {
+					console.log(callback)
+					var payloads = {};
+					var result = {
+						header: headers,
+						payload: payloads
+					};
+					context.succeed(result);
+				});
+
+				break;
+
+			case "scene":
+
+				var AppID = parseInt(event.payload.appliance.applianceId) - 200;
+
+				if (event.header.name == "TurnOnRequest") {
+					//state = 1;
+					confirmation = "TurnOnConfirmation";
+					funcName = "On";
+				} else if (event.header.name == "TurnOffRequest") {
+					//state = 0;
+					confirmation = "TurnOffConfirmation";
+					funcName = "Off";
+				}
+
+				var headers = {
+					namespace: 'Alexa.ConnectedHome.Control',
+					name: confirmation,
+					payloadVersion: '2',
+					messageId: message_id
+				};
+				console.log("I'm in the scene case - IDX = ", AppID, "On/Off? - ", funcName);
+				api.changeSceneState({
+					idx: AppID,
+					state: funcName
+				}, function(params, callback) {
+					console.log(callback)
+					var payloads = {};
+					var result = {
+						header: headers,
+						payload: payloads
+					};
+
+					context.succeed(result);
+				})
+				break;
+		}
+	};
+}
+
+function log(title, msg) {
+	console.log(title + ": " + msg);
+}
+
+function generateControlError(name, code, description) {
+	var headers = {
+		namespace: 'Alexa.ConnectedHome.Control',
+		name: name,
+		payloadVersion: '2'
+	};
+
+	var payload = {
+		exception: {
+			code: code,
+			description: description
+		}
+	};
+
+	var result = {
+		header: headers,
+		payload: payload
+	};
+
+	return result;
+}
