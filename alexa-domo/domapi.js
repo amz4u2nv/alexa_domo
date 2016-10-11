@@ -1,246 +1,140 @@
 var Domoticz = require('./node_modules/domoticz-api/api/domoticz');
+var lupus = require('./node_modules/lupus/index');
 
-//var api = new Domoticz();
+var api = new Domoticz({
+    protocol: "http",
+    host: "",
+    port: 8080,
+    username: "",
+    password: ""
+});
 
-var api = new Domoticz({protocol: "http", host: "", port: 8080, username: "", password: ""});
-
-var func = function(event, context) {
-  console.log('Input', event);
-
-  switch (event.header.namespace) {
-
-      /**
-       * The namespace of "Discovery" indicates a request is being made to the lambda for
-       * discovering all appliances associated with the customer's appliance cloud account.
-       * can use the accessToken that is made available as part of the payload to determine
-       * the customer.
-       */
-      case 'Alexa.ConnectedHome.Discovery':
-          handleDiscovery(event, context);
-          break;
-
-          /**
-           * The namespace of "Control" indicates a request is being made to us to turn a
-           * given device on, off or brighten. This message comes with the "appliance"
-           * parameter which indicates the appliance that needs to be acted on.
-           */
-      case 'Alexa.ConnectedHome.Control':
-          handleControl(event, context);
-          break;
-
-          /**
-           * We received an unexpected message
-           */
-      default:
-          console.log('Err', 'No supported namespace: ' + event.header.namespace);
-          context.fail('Something went wrong');
-          break;
-  }
-};
-
-exports.handler = func;
-
-function handleDiscovery(accessToken, context) {
-
-    /**
-     * Crafting the response header
-     */
-    var headers = {
-        namespace: 'Alexa.ConnectedHome.Discovery',
-        name: 'DiscoverAppliancesResponse',
-        payloadVersion: '2'
-    };
-
+var result;
+var payloads;
 var appliances = [];
 
-api.getScenesGroups(function(error, scene) {
-	var sceneArray = scene.results;
+var func = function (event, context) {
 
-	for(var i = 0; i < sceneArray.length; i++) {
-		var element = sceneArray[i];
-		//console.log(element)
-		//domoticz allows same IDX numbers for devices/scenes - yeah, i know.
-		var elid = parseInt(element.idx) + 200
-		console.log(elid, " = elid here")
-		var sceneName = {
-			applianceId: elid,
-			manufacturerName: element.name,
-      		modelName: element.name,
-      		version: element.idx,
-			friendlyName: element.name,
-			friendlyDescription: element.name,
-			isReachable: true,
-			actions: [
-			"turnOn",
-			"turnOff"
-			],
-			additionalApplianceDetails: {
-			WhatAmI: "scene"}
-	};appliances.push(sceneName);
-	};
-	});
+    switch (event.header.namespace) {
 
-api.getDevices({
-    filter: 'light',
-    used: true,
-    order: 'Name'
-}, function (error, devices) {
+        case 'Alexa.ConnectedHome.Discovery':
+            handleDiscovery(event, context);
+            break;
+        
+        case 'Alexa.ConnectedHome.Control':
+            handleControl(event, context);
+            break;
 
- var devArray =  devices.results;
-
-	for(var i = 0; i < devArray.length; i++) {
-		var device = devArray[i];
-		console.log("here is each devicetype - ", device.switchType)
-  
-  		setswitch = device.switchType
-    
-    	var appliancename = {
-		applianceId: device.idx,
-      	manufacturerName: device.hardwareName,
-      	modelName: device.subType,
-      	version: device.switchType,
-      	friendlyName: device.name,
-      	friendlyDescription: device.name,
-      	isReachable: true,
-      	actions:[
-          "incrementPercentage",
-          "decrementPercentage",
-          "setPercentage",
-          "turnOn",
-          "turnOff"
-      ],
-      additionalApplianceDetails: {
-      	switchis: setswitch,
-      	WhatAmI: "light"
-}
-
-};appliances.push(appliancename);
-
-
-for(var i = 0; i < appliances.length; i++) {
-		var device = appliances[i];
-  		console.log(device)
-  		}
-//appliances.forEach(entry)
-//  console.log(entry)
+        default:
+            console.log('Err', 'No supported namespace: ' + event.header.namespace);
+            context.fail('Something went wrong');
+            break;
+    }
 };
+exports.handler = func;
 
-var payloads = {
-    discoveredAppliances: appliances
-};
-var result = {
-    header: headers,
-    payload: payloads
-};
+function handleDiscovery(event, context) {
+   // var message_id = event.header.messageId;
 
-console.log('Discovery', result);
+    getDevs(context, function (callback) {
 
-context.succeed(result);
-}
-);
+        context.succeed(callback);
+        appliances = [];
+    })
 }
 
 function handleControl(event, context) {
     var state;
     var idx;
-    if (event.header.namespace === 'Alexa.ConnectedHome.Control') {
-          
+
+    log("what's the event?", event);
+
         var accessToken = event.payload.accessToken;
-        var what = event.payload.appliance.additionalApplianceDetails.WhatAmI
+        var what = event.payload.appliance.additionalApplianceDetails.WhatAmI;
         var message_id = event.header.messageId;
+        var switchtype = event.payload.appliance.additionalApplianceDetails.switchis;
+        var applianceId = event.payload.appliance.applianceId;
 
         var confirmation;
         var funcName;
-		
-		switch (what){
-		
-		case "light":
-		console.log("I'm in the Light case");
-		        
-		var switchtype = event.payload.appliance.additionalApplianceDetails.switchis
-		var applianceId = event.payload.appliance.applianceId;
-       
-        var switchtype = "switch";
-        
-        if(event.header.name == "TurnOnRequest"){
-            //state = 1;
-            confirmation = "TurnOnConfirmation";
-            funcName = "On";
-        }
-        else if(event.header.name == "TurnOffRequest"){
-            //state = 0;
-            confirmation = "TurnOffConfirmation";
-            funcName = "Off";
-        }
-		var headers = {
+
+        switch (what) {
+            case "light":
+                if (event.header.name == "TurnOnRequest") {
+                    confirmation = "TurnOnConfirmation";
+                    funcName = "On";
+                }
+                else if (event.header.name == "TurnOffRequest") {
+                    confirmation = "TurnOffConfirmation";
+                    funcName = "Off";
+                }
+                var headers = {
                     namespace: 'Alexa.ConnectedHome.Control',
                     name: confirmation,
                     payloadVersion: '2',
                     messageId: message_id
-                }; 
-                
-//Change state of a switch or a dimmable  
-		
-		api.changeSwitchState({
-      		type: switchtype,
-      		idx: applianceId,
-      		state: funcName
-      		}, function (params, callback) {
-        		console.log(callback)
-        	var payloads = {     
                 };
-                var result = {
-                    header: headers,
-                    payload: payloads
-                };
-                context.succeed(result);
-      		});
-      		
-      		break;
-      		
-      		case "scene":
-      		
-      		var AppID = parseInt(event.payload.appliance.applianceId) - 200;
-      
-      		if(event.header.name == "TurnOnRequest"){
-           	 //state = 1;
-           	 	confirmation = "TurnOnConfirmation";
-            	funcName = "On";
-        	}
-        	else if(event.header.name == "TurnOffRequest"){
-            	//state = 0;
-            	confirmation = "TurnOffConfirmation";
-            	funcName = "Off";
-        	}
-        
-        	var headers = {
+                ctrlLights(applianceId, funcName, function (callback) {
+                    var result = {
+                        header: headers,
+                        payload: callback
+                    };
+                    context.succeed(result);
+                }); break;
+            case "group":
+
+                var AppID = parseInt(event.payload.appliance.applianceId) - 200;
+
+                if (event.header.name == "TurnOnRequest") {
+                    confirmation = "TurnOnConfirmation";
+                    funcName = "On";
+                }
+                else if (event.header.name == "TurnOffRequest") {
+                    confirmation = "TurnOffConfirmation";
+                    funcName = "Off";
+                }
+                 headers = {
                     namespace: 'Alexa.ConnectedHome.Control',
                     name: confirmation,
                     payloadVersion: '2',
                     messageId: message_id
-            }; 
-      		console.log("I'm in the scene case - IDX = ", AppID, "On/Off? - ", funcName);
-      		api.changeSceneState({
-      		idx: AppID,
-      		state: funcName
-      		}, function (params, callback) {
-        		console.log(callback)
-        		var payloads = {
-        		};
-                var result = {
-                    header: headers,
-                    payload: payloads
                 };
+                ctrlScene(AppID, funcName, function (callback) {
+                    var result = {
+                        header: headers,
+                        payload: callback
+                    };
+                    context.succeed(result);
+                }); break;
+            case "temp":
 
-                context.succeed(result);
-      		})
-      		break;
-}      		
-        };
-    }
+                var temp = event.payload.targetTemperature.value;
 
-function log(title, msg) {
-    console.log(title + ": " + msg);
+                applianceId = event.payload.appliance.applianceId;
+
+                if (event.header.name == "SetTargetTemperatureRequest") {
+                    confirmation = "SetTargetTemperatureConfirmation";
+                    //	flVal = parseFloat(temp);
+                }
+                headers = {
+                    namespace: 'Alexa.ConnectedHome.Control',
+                    name: confirmation,
+                    payloadVersion: '2',
+                    messageId: message_id
+                };
+                ctrlTemp(applianceId, temp, function (callback) {
+                    var result = {
+                        header: headers,
+                        payload: callback
+                    };
+                    context.succeed(result);
+                });
+                break;
+
+            default:
+                log("error - not hit a device type");
+
+        }
 }
 
 function generateControlError(name, code, description) {
@@ -250,7 +144,8 @@ function generateControlError(name, code, description) {
         payloadVersion: '2'
     };
 
-    var payload = {
+    var payload;
+    payload = {
         exception: {
             code: code,
             description: description
@@ -264,3 +159,142 @@ function generateControlError(name, code, description) {
 
     return result;
 }
+
+function getDevs(context, callback) {
+
+    var headers = {
+        namespace: 'Alexa.ConnectedHome.Discovery',
+        name: 'DiscoverAppliancesResponse',
+        payloadVersion: '2'
+    };
+    api.getDevices({
+        filter: 'all',
+        used: true,
+        order: 'Name'
+    }, function (error, devices) {
+        var devArray = devices.results;
+        var i = devArray.length;
+        lupus(0, devArray.length, function (n) {
+
+            var device = devArray[n];
+            var devType = device.type;
+            var setswitch = device.switchType;
+            i--;
+            if (devType.startsWith("Light")) {
+                var appliancename = {
+                    applianceId: device.idx,
+                    manufacturerName: device.hardwareName,
+                    modelName: device.subType,
+                    version: device.switchType,
+                    friendlyName: device.name,
+                    friendlyDescription: ".",
+                    isReachable: true,
+                    actions: [
+                        "incrementPercentage",
+                        "decrementPercentage",
+                        "setPercentage",
+                        "turnOn",
+                        "turnOff"
+                    ],
+                    additionalApplianceDetails: {
+                        switchis: setswitch,
+                        WhatAmI: "light"
+                    }
+                };
+                appliances.push(appliancename);
+            }
+            else if (devType == 'Temp') {
+                appliancename = {
+                    applianceId: device.idx,
+                    manufacturerName: device.hardwareName,
+                    modelName: device.subType,
+                    version: device.idx,
+                    friendlyName: device.name,
+                    friendlyDescription: ".",
+                    isReachable: true,
+                    actions: [
+                        "setTargetTemperature"
+                    ],
+                    additionalApplianceDetails: {
+                        WhatAmI: "temp"
+                    }
+                };
+                appliances.push(appliancename);
+            }
+             else if (devType == 'Group') {
+               var elid = parseInt(device.idx) + 200;
+               appliancename = {
+                   applianceId: elid,
+                   manufacturerName: device.name,
+                   modelName: device.name,
+                   version: device.name,
+                   friendlyName: device.name,
+                   friendlyDescription: ".",
+                   isReachable: true,
+                   actions: [
+                       "turnOn",
+                       "turnOff"
+                   ],
+                   additionalApplianceDetails: {
+                       WhatAmI: "group"
+                   }
+               };
+               appliances.push(appliancename);
+           }
+            if (i == 0) {
+                var payloads = {
+                    discoveredAppliances: appliances
+                };
+              //  log(appliances);
+                var result = {
+                    header: headers,
+                    payload: payloads
+                };
+               callback(result);
+            }
+        })
+    })
+}
+
+function ctrlLights(applianceId, func, sendback) {
+    api.changeSwitchState({
+        type: "switch",
+        idx: applianceId,
+        state: func
+    }, function (params, callback) {
+        console.log(params, callback);
+        var payloads = {};
+
+        sendback(payloads)
+    });
+  }
+
+function ctrlScene(idx, func, sendback) {
+    api.changeSceneState({
+        idx: idx,
+        state: func
+    }, function (params, callback) {
+        console.log(params, callback);
+        var payloads = {};
+        sendback(payloads)
+    });
+
+}
+
+function ctrlTemp(idx, temp, sendback) {
+
+    api.uTemp({
+        idx: idx,
+        value: temp
+    }, function(params, callback) {
+        console.log(callback);
+        var payloads = {};
+        sendback(payloads)
+    });
+}
+
+var log = function(title, msg) {
+
+    console.log('**** ' + title + ': ' + JSON.stringify(msg));
+
+};
